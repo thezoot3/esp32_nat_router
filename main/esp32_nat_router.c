@@ -35,6 +35,7 @@
 #include "dhcpserver/dhcpserver_options.h"
 
 #include "cmd_decl.h"
+#include "mqtt.h"
 #include <esp_http_server.h>
 
 #if !IP_NAPT
@@ -418,7 +419,6 @@ void wifi_init(const uint8_t* mac, const char* ssid, const char* ent_username, c
     }
 
     my_ap_ip = esp_ip4addr_aton(ap_ip);
-
     esp_netif_ip_info_t ipInfo_ap;
     ipInfo_ap.ip.addr = my_ap_ip;
     ipInfo_ap.gw.addr = my_ap_ip;
@@ -498,7 +498,7 @@ void wifi_init(const uint8_t* mac, const char* ssid, const char* ent_username, c
         ESP_ERROR_CHECK(esp_wifi_set_mac(ESP_IF_WIFI_AP, ap_mac));
     }
 
-
+    
     // Enable DNS (offer) for dhcp server
     dhcps_offer_t dhcps_dns_value = OFFER_DNS;
     esp_netif_dhcps_option(wifiAP,ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dhcps_dns_value, sizeof(dhcps_dns_value));
@@ -510,17 +510,18 @@ void wifi_init(const uint8_t* mac, const char* ssid, const char* ent_username, c
 
     // esp_netif_get_dns_info(ESP_IF_WIFI_AP, ESP_NETIF_DNS_MAIN, &dnsinfo);
     // ESP_LOGI(TAG, "DNS IP:" IPSTR, IP2STR(&dnsinfo.ip.u_addr.ip4));
-
+    ESP_ERROR_CHECK(esp_wifi_config_80211_tx_rate(ESP_IF_WIFI_AP, WIFI_PHY_RATE_MCS0_LGI));
+    ESP_ERROR_CHECK(esp_wifi_config_80211_tx_rate(ESP_IF_WIFI_STA, WIFI_PHY_RATE_MCS0_LGI));
     xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT,
         pdFALSE, pdTRUE, JOIN_TIMEOUT_MS / portTICK_PERIOD_MS);
     ESP_ERROR_CHECK(esp_wifi_start());
-
     if (strlen(ssid) > 0) {
         ESP_LOGI(TAG, "wifi_init_apsta finished.");
         ESP_LOGI(TAG, "connect to ap SSID: %s ", ssid);
     } else {
         ESP_LOGI(TAG, "wifi_init_ap with default finished.");      
     }
+    
 }
 
 uint8_t* mac = NULL;
@@ -617,7 +618,7 @@ void app_main(void)
         start_webserver();
     }
     free(lock);
-
+    mqtt_service_start();
     initialize_console();
 
     /* Register commands */
@@ -625,7 +626,6 @@ void app_main(void)
     register_system();
     register_nvs();
     register_router();
-
     /* Prompt to be printed before each line.
      * This can be customized, made dynamic, etc.
      */
